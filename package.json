@@ -1,7 +1,7 @@
 {
   "name": "llm-cost-optimizer",
   "version": "0.1.0",
-  "description": "Analyze LLM API usage logs, calculate cost, and recommend optimizations in real time.",
+  "description": "Cut your LLM bill by 30-70%. Analyze OpenAI/Anthropic/Google/DeepSeek API logs, calculate cost, and get actionable optimization recommendations. CLI + Web dashboard.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
@@ -19,7 +19,15 @@
     "optimization",
     "openai",
     "anthropic",
-    "ai-cost"
+    "claude",
+    "gpt",
+    "ai-cost",
+    "cost-analysis",
+    "cost-tracker",
+    "mcp",
+    "cli",
+    "typescript",
+    "node"
   ],
   "license": "MIT",
   "engines": {
@@ -32,5 +40,7 @@
   },
   "dependencies": {
     "ethers": "^6.16.0"
-  }
+  },
+  "homepage": "https://administrative-with-composition-sleeve.trycloudflare.com",
+  "funding": "0x536DC8Eb3463a9Eb7f040E46421eb275fce30402"
 }
