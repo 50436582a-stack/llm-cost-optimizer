@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LLM Cost Optimizer — Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #131a2c;
+    --panel-2: #1a2236;
+    --border: #2a3550;
+    --text: #e8ecf3;
+    --muted: #8a93a8;
+    --accent: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --info: #60a5fa;
+    --purple: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 32px 16px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { color: var(--muted); margin-bottom: 32px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .card .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .panel h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rec { background: var(--panel-2); border-left: 4px solid var(--info); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .rec.high { border-left-color: var(--danger); }
+  .rec.medium { border-left-color: var(--warn); }
+  .rec.low { border-left-color: var(--info); }
+  .rec .title { font-weight: 600; margin-bottom: 6px; }
+  .rec .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
+  .badge.high { background: rgba(248, 113, 113, 0.2); color: var(--danger); }
+  .badge.medium { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
+  .badge.low { background: rgba(96, 165, 250, 0.2); color: var(--info); }
+  .rec .desc { color: var(--muted); font-size: 14px; margin: 8px 0; }
+  .rec .savings { color: var(--accent); font-weight: 600; }
+  .rec .action { background: rgba(74, 222, 128, 0.05); border-left: 3px solid var(--accent); padding: 10px 12px; margin-top: 10px; font-size: 13px; color: var(--muted); border-radius: 4px; }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .bar-fill { height: 100%; background: var(--info); transition: width 0.3s; }
+  .cta { background: linear-gradient(135deg, #4ade80, #22d3ee); color: #000; padding: 14px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; display: inline-block; margin-top: 16px; }
+  code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', Monaco, monospace; font-size: 13px; }
+  .footer { text-align: center; color: var(--muted); padding: 32px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💸 LLM Cost Optimizer</h1>
+  <p class="subtitle">Real-time analysis and optimization recommendations for your LLM API spend</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">Current monthly cost</div>
+      <div class="value" style="color: var(--warn)">$1,295</div>
+      <div class="sub">Based on 30-day projection</div>
+    </div>
+    <div class="card">
+      <div class="label">Potential savings</div>
+      <div class="value" style="color: var(--accent)">$454</div>
+      <div class="sub">35% reduction, ~9 hours work</div>
+    </div>
+    <div class="card">
+      <div class="label">Total requests</div>
+      <div class="value">20,000</div>
+      <div class="sub">Across 6 models</div>
+    </div>
+    <div class="card">
+      <div class="label">Cache hit rate</div>
+      <div class="value" style="color: var(--danger)">6.5%</div>
+      <div class="sub">Industry median: 40%</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Spend by model</h2>
+    <table>
+      <thead><tr><th>Model</th><th class="num">Requests</th><th class="num">Cost</th><th class="num">% of total</th><th></th></tr></thead>
+      <tbody id="modelTable"></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>🎯 Optimization recommendations</h2>
+    <div id="recList"></div>
+  </div>
+
+  <div class="panel">
+    <h2>How to use</h2>
+    <p style="margin-bottom: 12px">Run the analyzer against your LLM API logs:</p>
+    <p style="margin: 8px 0"><code>npm install -g llm-cost-optimizer</code></p>
+    <p style="margin: 8px 0"><code>cat api_logs.jsonl | llm-cost analyze -</code></p>
+    <p style="margin-top: 12px; color: var(--muted)">Or use the web upload below to analyze a JSON/JSONL log file in your browser.</p>
+    <input type="file" id="fileInput" accept=".json,.jsonl" style="margin-top: 12px">
+    <div id="fileOutput" style="margin-top: 16px"></div>
+  </div>
+
+  <div class="panel" style="text-align: center">
+    <h2 style="margin-bottom: 12px">Get the full report</h2>
+    <p style="color: var(--muted); margin-bottom: 16px">Detailed per-request breakdown, custom alerts, CI/CD integration, Slack/Discord webhooks</p>
+    <a class="cta" href="#pricing">View pricing →</a>
+  </div>
+
+  <div class="footer">
+    Made with ☕ by Codex • <a href="https://github.com/codex-earner/llm-cost-optimizer" style="color: var(--info)">Open source on GitHub</a>
+  </div>
+</div>
+
+<script type="module">
+import { analyze } from '../src/analyzer.js';
+import { recommend } from '../src/recommendations.js';
+
+const demoData = `{"id":"chatcmpl-1000","model":"gpt-4o","created":1718330100,"user":"alice@example.com","usage":{"prompt_tokens":6306,"completion_tokens":1031,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1001","model":"claude-3-5-sonnet-20241022","created":1718330101,"user":"bob@example.com","usage":{"prompt_tokens":4717,"completion_tokens":2419,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1002","model":"gpt-4o","created":1718330102,"user":"charlie@example.com","usage":{"prompt_tokens":3529,"completion_tokens":1878,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1003","model":"gpt-4o-mini","created":1718330103,"user":"diana@example.com","usage":{"prompt_tokens":6139,"completion_tokens":2597,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1004","model":"claude-3-opus-20240229","created":1718330104,"user":"eve@example.com","usage":{"prompt_tokens":5928,"completion_tokens":2077,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1005","model":"o1-mini","created":1718330105,"user":"frank@example.com","usage":{"prompt_tokens":5345,"completion_tokens":2849,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1139}}}
+{"id":"chatcmpl-1006","model":"gpt-4o","created":1718330106,"user":"alice@example.com","usage":{"prompt_tokens":3410,"completion_tokens":2454,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1007","model":"claude-3-5-sonnet-20241022","created":1718330107,"user":"bob@example.com","usage":{"prompt_tokens":3424,"completion_tokens":1464,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1008","model":"gpt-4o","created":1718330108,"user":"charlie@example.com","usage":{"prompt_tokens":3612,"completion_tokens":1873,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1009","model":"gpt-4o-mini","created":1718330109,"user":"diana@example.com","usage":{"prompt_tokens":5082,"completion_tokens":3034,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1010","model":"claude-3-opus-20240229","created":1718330110,"user":"eve@example.com","usage":{"prompt_tokens":4909,"completion_tokens":1967,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1011","model":"o1-mini","created":1718330111,"user":"frank@example.com","usage":{"prompt_tokens":3645,"completion_tokens":953,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":381}}}
+{"id":"chatcmpl-1012","model":"gpt-4o","created":1718330112,"user":"alice@example.com","usage":{"prompt_tokens":5696,"completion_tokens":1382,"prompt_tokens_details":{"cached_tokens":3417}}}
+{"id":"chatcmpl-1013","model":"claude-3-5-sonnet-20241022","created":1718330113,"user":"bob@example.com","usage":{"prompt_tokens":4465,"completion_tokens":1941,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1014","model":"gpt-4o","created":1718330114,"user":"charlie@example.com","usage":{"prompt_tokens":6976,"completion_tokens":2927,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1015","model":"gpt-4o-mini","created":1718330115,"user":"diana@example.com","usage":{"prompt_tokens":5577,"completion_tokens":2875,"prompt_tokens_details":{"cached_tokens":3346}}}
+{"id":"chatcmpl-1016","model":"claude-3-opus-20240229","created":1718330116,"user":"eve@example.com","usage":{"prompt_tokens":4902,"completion_tokens":916,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1017","model":"o1-mini","created":1718330117,"user":"frank@example.com","usage":{"prompt_tokens":6755,"completion_tokens":3005,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1202}}}
+{"id":"chatcmpl-1018","model":"gpt-4o","created":1718330118,"user":"alice@example.com","usage":{"prompt_tokens":4037,"completion_tokens":3019,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1019","model":"claude-3-5-sonnet-20241022","created":1718330119,"user":"bob@example.com","usage":{"prompt_tokens":6855,"completion_tokens":1942,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1020","model":"gpt-4o","created":1718330120,"user":"charlie@example.com","usage":{"prompt_tokens":6014,"completion_tokens":1452,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1021","model":"gpt-4o-mini","created":1718330121,"user":"diana@example.com","usage":{"prompt_tokens":4409,"completion_tokens":1358,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1022","model":"claude-3-opus-20240229","created":1718330122,"user":"eve@example.com","usage":{"prompt_tokens":6105,"completion_tokens":3036,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1023","model":"o1-mini","created":1718330123,"user":"frank@example.com","usage":{"prompt_tokens":4454,"completion_tokens":2264,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":905}}}
+{"id":"chatcmpl-1024","model":"gpt-4o","created":1718330124,"user":"alice@example.com","usage":{"prompt_tokens":4710,"completion_tokens":2326,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1025","model":"claude-3-5-sonnet-20241022","created":1718330125,"user":"bob@example.com","usage":{"prompt_tokens":3167,"completion_tokens":2916,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1026","model":"gpt-4o","created":1718330126,"user":"charlie@example.com","usage":{"prompt_tokens":6097,"completion_tokens":1410,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1027","model":"gpt-4o-mini","created":1718330127,"user":"diana@example.com","usage":{"prompt_tokens":5316,"completion_tokens":3177,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1028","model":"claude-3-opus-20240229","created":1718330128,"user":"eve@example.com","usage":{"prompt_tokens":3357,"completion_tokens":1583,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1029","model":"o1-mini","created":1718330129,"user":"frank@example.com","usage":{"prompt_tokens":5811,"completion_tokens":2167,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":866}}}
+{"id":"chatcmpl-1030","model":"gpt-4o","created":1718330130,"user":"alice@example.com","usage":{"prompt_tokens":6603,"completion_tokens":2027,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1031","model":"claude-3-5-sonnet-20241022","created":1718330131,"user":"bob@example.com","usage":{"prompt_tokens":3504,"completion_tokens":1883,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1032","model":"gpt-4o","created":1718330132,"user":"charlie@example.com","usage":{"prompt_tokens":5691,"completion_tokens":1566,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1033","model":"gpt-4o-mini","created":1718330133,"user":"diana@example.com","usage":{"prompt_tokens":6866,"completion_tokens":2832,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1034","model":"claude-3-opus-20240229","created":1718330134,"user":"eve@example.com","usage":{"prompt_tokens":5072,"completion_tokens":2645,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1035","model":"o1-mini","created":1718330135,"user":"frank@example.com","usage":{"prompt_tokens":5517,"completion_tokens":878,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":351}}}
+{"id":"chatcmpl-1036","model":"gpt-4o","created":1718330136,"user":"alice@example.com","usage":{"prompt_tokens":4381,"completion_tokens":1659,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1037","model":"claude-3-5-sonnet-20241022","created":1718330137,"user":"bob@example.com","usage":{"prompt_tokens":4821,"completion_tokens":2027,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1038","model":"gpt-4o","created":1718330138,"user":"charlie@example.com","usage":{"prompt_tokens":5010,"completion_tokens":2783,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1039","model":"gpt-4o-mini","created":1718330139,"user":"diana@example.com","usage":{"prompt_tokens":5240,"completion_tokens":940,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1040","model":"claude-3-opus-20240229","created":1718330140,"user":"eve@example.com","usage":{"prompt_tokens":3865,"completion_tokens":3010,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1041","model":"o1-mini","created":1718330141,"user":"frank@example.com","usage":{"prompt_tokens":3976,"completion_tokens":2435,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":974}}}
+{"id":"chatcmpl-1042","model":"gpt-4o","created":1718330142,"user":"alice@example.com","usage":{"prompt_tokens":6409,"completion_tokens":2917,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1043","model":"claude-3-5-sonnet-20241022","created":1718330143,"user":"bob@example.com","usage":{"prompt_tokens":5543,"completion_tokens":3165,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1044","model":"gpt-4o","created":1718330144,"user":"charlie@example.com","usage":{"prompt_tokens":6020,"completion_tokens":2358,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1045","model":"gpt-4o-mini","created":1718330145,"user":"diana@example.com","usage":{"prompt_tokens":3210,"completion_tokens":3280,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1046","model":"claude-3-opus-20240229","created":1718330146,"user":"eve@example.com","usage":{"prompt_tokens":3306,"completion_tokens":2136,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1047","model":"o1-mini","created":1718330147,"user":"frank@example.com","usage":{"prompt_tokens":5746,"completion_tokens":2871,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1148}}}
+{"id":"chatcmpl-1048","model":"gpt-4o","created":1718330148,"user":"alice@example.com","usage":{"prompt_tokens":3758,"completion_tokens":1772,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1049","model":"claude-3-5-sonnet-20241022","created":1718330149,"user":"bob@example.com","usage":{"prompt_tokens":4537,"completion_tokens":1515,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1050","model":"gpt-4o","created":1718330150,"user":"charlie@example.com","usage":{"prompt_tokens":4116,"completion_tokens":2205,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1051","model":"gpt-4o-mini","created":1718330151,"user":"diana@example.com","usage":{"prompt_tokens":4715,"completion_tokens":3290,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1052","model":"claude-3-opus-20240229","created":1718330152,"user":"eve@example.com","usage":{"prompt_tokens":3493,"completion_tokens":2508,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1053","model":"o1-mini","created":1718330153,"user":"frank@example.com","usage":{"prompt_tokens":5986,"completion_tokens":2763,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1105}}}
+{"id":"chatcmpl-1054","model":"gpt-4o","created":1718330154,"user":"alice@example.com","usage":{"prompt_tokens":4916,"completion_tokens":1805,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1055","model":"claude-3-5-sonnet-20241022","created":1718330155,"user":"bob@example.com","usage":{"prompt_tokens":6873,"completion_tokens":1945,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1056","model":"gpt-4o","created":1718330156,"user":"charlie@example.com","usage":{"prompt_tokens":4487,"completion_tokens":2786,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1057","model":"gpt-4o-mini","created":1718330157,"user":"diana@example.com","usage":{"prompt_tokens":3402,"completion_tokens":3288,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1058","model":"claude-3-opus-20240229","created":1718330158,"user":"eve@example.com","usage":{"prompt_tokens":6896,"completion_tokens":1679,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1059","model":"o1-mini","created":1718330159,"user":"frank@example.com","usage":{"prompt_tokens":6435,"completion_tokens":3233,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1293}}}
+{"id":"chatcmpl-1060","model":"gpt-4o","created":1718330160,"user":"alice@example.com","usage":{"prompt_tokens":4051,"completion_tokens":2218,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1061","model":"claude-3-5-sonnet-20241022","created":1718330161,"user":"bob@example.com","usage":{"prompt_tokens":5326,"completion_tokens":1264,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1062","model":"gpt-4o","created":1718330162,"user":"charlie@example.com","usage":{"prompt_tokens":6474,"completion_tokens":843,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1063","model":"gpt-4o-mini","created":1718330163,"user":"diana@example.com","usage":{"prompt_tokens":6573,"completion_tokens":1876,"prompt_tokens_details":{"cached_tokens":3943}}}
+{"id":"chatcmpl-1064","model":"claude-3-opus-20240229","created":1718330164,"user":"eve@example.com","usage":{"prompt_tokens":3147,"completion_tokens":2375,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1065","model":"o1-mini","created":1718330165,"user":"frank@example.com","usage":{"prompt_tokens":5652,"completion_tokens":1674,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":669}}}
+{"id":"chatcmpl-1066","model":"gpt-4o","created":1718330166,"user":"alice@example.com","usage":{"prompt_tokens":5424,"completion_tokens":2729,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1067","model":"claude-3-5-sonnet-20241022","created":1718330167,"user":"bob@example.com","usage":{"prompt_tokens":3293,"completion_tokens":2260,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1068","model":"gpt-4o","created":1718330168,"user":"charlie@example.com","usage":{"prompt_tokens":4247,"completion_tokens":1691,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1069","model":"gpt-4o-mini","created":1718330169,"user":"diana@example.com","usage":{"prompt_tokens":3547,"completion_tokens":1921,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1070","model":"claude-3-opus-20240229","created":1718330170,"user":"eve@example.com","usage":{"prompt_tokens":3817,"completion_tokens":2765,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1071","model":"o1-mini","created":1718330171,"user":"frank@example.com","usage":{"prompt_tokens":5937,"completion_tokens":1480,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":592}}}
+{"id":"chatcmpl-1072","model":"gpt-4o","created":1718330172,"user":"alice@example.com","usage":{"prompt_tokens":3367,"completion_tokens":2776,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1073","model":"claude-3-5-sonnet-20241022","created":1718330173,"user":"bob@example.com","usage":{"prompt_tokens":4736,"completion_tokens":989,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1074","model":"gpt-4o","created":1718330174,"user":"charlie@example.com","usage":{"prompt_tokens":5136,"completion_tokens":3207,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1075","model":"gpt-4o-mini","created":1718330175,"user":"diana@example.com","usage":{"prompt_tokens":5976,"completion_tokens":2661,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1076","model":"claude-3-opus-20240229","created":1718330176,"user":"eve@example.com","usage":{"prompt_tokens":3512,"completion_tokens":1691,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1077","model":"o1-mini","created":1718330177,"user":"frank@example.com","usage":{"prompt_tokens":3943,"completion_tokens":2496,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":998}}}
+{"id":"chatcmpl-1078","model":"gpt-4o","created":1718330178,"user":"alice@example.com","usage":{"prompt_tokens":4221,"completion_tokens":909,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1079","model":"claude-3-5-sonnet-20241022","created":1718330179,"user":"bob@example.com","usage":{"prompt_tokens":5515,"completion_tokens":1816,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1080","model":"gpt-4o","created":1718330180,"user":"charlie@example.com","usage":{"prompt_tokens":4933,"completion_tokens":2298,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1081","model":"gpt-4o-mini","created":1718330181,"user":"diana@example.com","usage":{"prompt_tokens":3835,"completion_tokens":1768,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1082","model":"claude-3-opus-20240229","created":1718330182,"user":"eve@example.com","usage":{"prompt_tokens":6904,"completion_tokens":2541,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1083","model":"o1-mini","created":1718330183,"user":"frank@example.com","usage":{"prompt_tokens":3366,"completion_tokens":1130,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":452}}}
+{"id":"chatcmpl-1084","model":"gpt-4o","created":1718330184,"user":"alice@example.com","usage":{"prompt_tokens":3702,"completion_tokens":2986,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1085","model":"claude-3-5-sonnet-20241022","created":1718330185,"user":"bob@example.com","usage":{"prompt_tokens":4646,"completion_tokens":3178,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1086","model":"gpt-4o","created":1718330186,"user":"charlie@example.com","usage":{"prompt_tokens":5407,"completion_tokens":2993,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1087","model":"gpt-4o-mini","created":1718330187,"user":"diana@example.com","usage":{"prompt_tokens":5862,"completion_tokens":989,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1088","model":"claude-3-opus-20240229","created":1718330188,"user":"eve@example.com","usage":{"prompt_tokens":6451,"completion_tokens":1599,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1089","model":"o1-mini","created":1718330189,"user":"frank@example.com","usage":{"prompt_tokens":3819,"completion_tokens":2712,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1084}}}
+{"id":"chatcmpl-1090","model":"gpt-4o","created":1718330190,"user":"alice@example.com","usage":{"prompt_tokens":5471,"completion_tokens":920,"prompt_tokens_details":{"cached_tokens":3282}}}
+{"id":"chatcmpl-1091","model":"claude-3-5-sonnet-20241022","created":1718330191,"user":"bob@example.com","usage":{"prompt_tokens":6573,"completion_tokens":2730,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1092","model":"gpt-4o","created":1718330192,"user":"charlie@example.com","usage":{"prompt_tokens":5040,"completion_tokens":1411,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1093","model":"gpt-4o-mini","created":1718330193,"user":"diana@example.com","usage":{"prompt_tokens":5610,"completion_tokens":1245,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1094","model":"claude-3-opus-20240229","created":1718330194,"user":"eve@example.com","usage":{"prompt_tokens":6155,"completion_tokens":1365,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1095","model":"o1-mini","created":1718330195,"user":"frank@example.com","usage":{"prompt_tokens":3152,"completion_tokens":2582,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1032}}}
+{"id":"chatcmpl-1096","model":"gpt-4o","created":1718330196,"user":"alice@example.com","usage":{"prompt_tokens":5279,"completion_tokens":3099,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1097","model":"claude-3-5-sonnet-20241022","created":1718330197,"user":"bob@example.com","usage":{"prompt_tokens":3019,"completion_tokens":2768,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1098","model":"gpt-4o","created":1718330198,"user":"charlie@example.com","usage":{"prompt_tokens":4778,"completion_tokens":1512,"prompt_tokens_details":{"cached_tokens":2866}}}
+{"id":"chatcmpl-1099","model":"gpt-4o-mini","created":1718330199,"user":"diana@example.com","usage":{"prompt_tokens":6594,"completion_tokens":3062,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1100","model":"claude-3-opus-20240229","created":1718330200,"user":"eve@example.com","usage":{"prompt_tokens":5274,"completion_tokens":2995,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1101","model":"o1-mini","created":1718330201,"user":"frank@example.com","usage":{"prompt_tokens":5456,"completion_tokens":2380,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":952}}}
+{"id":"chatcmpl-1102","model":"gpt-4o","created":1718330202,"user":"alice@example.com","usage":{"prompt_tokens":3277,"completion_tokens":1962,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1103","model":"claude-3-5-sonnet-20241022","created":1718330203,"user":"bob@example.com","usage":{"prompt_tokens":4960,"completion_tokens":1160,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1104","model":"gpt-4o","created":1718330204,"user":"charlie@example.com","usage":{"prompt_tokens":5554,"completion_tokens":1790,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1105","model":"gpt-4o-mini","created":1718330205,"user":"diana@example.com","usage":{"prompt_tokens":5839,"completion_tokens":2352,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1106","model":"claude-3-opus-20240229","created":1718330206,"user":"eve@example.com","usage":{"prompt_tokens":5538,"completion_tokens":2867,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1107","model":"o1-mini","created":1718330207,"user":"frank@example.com","usage":{"prompt_tokens":5749,"completion_tokens":1078,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":431}}}
+{"id":"chatcmpl-1108","model":"gpt-4o","created":1718330208,"user":"alice@example.com","usage":{"prompt_tokens":3912,"completion_tokens":1761,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1109","model":"claude-3-5-sonnet-20241022","created":1718330209,"user":"bob@example.com","usage":{"prompt_tokens":4963,"completion_tokens":1435,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1110","model":"gpt-4o","created":1718330210,"user":"charlie@example.com","usage":{"prompt_tokens":4396,"completion_tokens":2038,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1111","model":"gpt-4o-mini","created":1718330211,"user":"diana@example.com","usage":{"prompt_tokens":5937,"completion_tokens":1976,"prompt_tokens_details":{"cached_tokens":3562}}}
+{"id":"chatcmpl-1112","model":"claude-3-opus-20240229","created":1718330212,"user":"eve@example.com","usage":{"prompt_tokens":4047,"completion_tokens":2674,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1113","model":"o1-mini","created":1718330213,"user":"frank@example.com","usage":{"prompt_tokens":5588,"completion_tokens":2008,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":803}}}
+{"id":"chatcmpl-1114","model":"gpt-4o","created":1718330214,"user":"alice@example.com","usage":{"prompt_tokens":5733,"completion_tokens":2164,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1115","model":"claude-3-5-sonnet-20241022","created":1718330215,"user":"bob@example.com","usage":{"prompt_tokens":3271,"completion_tokens":952,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1116","model":"gpt-4o","created":1718330216,"user":"charlie@example.com","usage":{"prompt_tokens":5746,"completion_tokens":1350,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1117","model":"gpt-4o-mini","created":1718330217,"user":"diana@example.com","usage":{"prompt_tokens":5115,"completion_tokens":1308,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1118","model":"claude-3-opus-20240229","created":1718330218,"user":"eve@example.com","usage":{"prompt_tokens":4752,"completion_tokens":1937,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1119","model":"o1-mini","created":1718330219,"user":"frank@example.com","usage":{"prompt_tokens":3614,"completion_tokens":1972,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":788}}}
+{"id":"chatcmpl-1120","model":"gpt-4o","created":1718330220,"user":"alice@example.com","usage":{"prompt_tokens":4827,"completion_tokens":848,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1121","model":"claude-3-5-sonnet-20241022","created":1718330221,"user":"bob@example.com","usage":{"prompt_tokens":5874,"completion_tokens":1470,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1122","model":"gpt-4o","created":1718330222,"user":"charlie@example.com","usage":{"prompt_tokens":5487,"completion_tokens":3034,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1123","model":"gpt-4o-mini","created":1718330223,"user":"diana@example.com","usage":{"prompt_tokens":6296,"completion_tokens":2989,"prompt_tokens_details":{"cached_tokens":3777}}}
+{"id":"chatcmpl-1124","model":"claude-3-opus-20240229","created":1718330224,"user":"eve@example.com","usage":{"prompt_tokens":3118,"completion_tokens":3181,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1125","model":"o1-mini","created":1718330225,"user":"frank@example.com","usage":{"prompt_tokens":6741,"completion_tokens":2788,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1115}}}
+{"id":"chatcmpl-1126","model":"gpt-4o","created":1718330226,"user":"alice@example.com","usage":{"prompt_tokens":6693,"completion_tokens":856,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1127","model":"claude-3-5-sonnet-20241022","created":1718330227,"user":"bob@example.com","usage":{"prompt_tokens":3896,"completion_tokens":1980,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1128","model":"gpt-4o","created":1718330228,"user":"charlie@example.com","usage":{"prompt_tokens":5348,"completion_tokens":1632,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1129","model":"gpt-4o-mini","created":1718330229,"user":"diana@example.com","usage":{"prompt_tokens":4349,"completion_tokens":2913,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1130","model":"claude-3-opus-20240229","created":1718330230,"user":"eve@example.com","usage":{"prompt_tokens":3196,"completion_tokens":1411,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1131","model":"o1-mini","created":1718330231,"user":"frank@example.com","usage":{"prompt_tokens":4548,"completion_tokens":1620,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":648}}}
+{"id":"chatcmpl-1132","model":"gpt-4o","created":1718330232,"user":"alice@example.com","usage":{"prompt_tokens":4266,"completion_tokens":1156,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1133","model":"claude-3-5-sonnet-20241022","created":1718330233,"user":"bob@example.com","usage":{"prompt_tokens":4678,"completion_tokens":1976,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1134","model":"gpt-4o","created":1718330234,"user":"charlie@example.com","usage":{"prompt_tokens":3049,"completion_tokens":2035,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1135","model":"gpt-4o-mini","created":1718330235,"user":"diana@example.com","usage":{"prompt_tokens":5616,"completion_tokens":1643,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1136","model":"claude-3-opus-20240229","created":1718330236,"user":"eve@example.com","usage":{"prompt_tokens":3235,"completion_tokens":2760,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1137","model":"o1-mini","created":1718330237,"user":"frank@example.com","usage":{"prompt_tokens":4054,"completion_tokens":1151,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":460}}}
+{"id":"chatcmpl-1138","model":"gpt-4o","created":1718330238,"user":"alice@example.com","usage":{"prompt_tokens":6699,"completion_tokens":1513,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1139","model":"claude-3-5-sonnet-20241022","created":1718330239,"user":"bob@example.com","usage":{"prompt_tokens":4979,"completion_tokens":1451,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1140","model":"gpt-4o","created":1718330240,"user":"charlie@example.com","usage":{"prompt_tokens":3860,"completion_tokens":3262,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1141","model":"gpt-4o-mini","created":1718330241,"user":"diana@example.com","usage":{"prompt_tokens":3466,"completion_tokens":2515,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1142","model":"claude-3-opus-20240229","created":1718330242,"user":"eve@example.com","usage":{"prompt_tokens":4599,"completion_tokens":3125,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1143","model":"o1-mini","created":1718330243,"user":"frank@example.com","usage":{"prompt_tokens":5305,"completion_tokens":1625,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":650}}}
+{"id":"chatcmpl-1144","model":"gpt-4o","created":1718330244,"user":"alice@example.com","usage":{"prompt_tokens":6613,"completion_tokens":2696,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1145","model":"claude-3-5-sonnet-20241022","created":1718330245,"user":"bob@example.com","usage":{"prompt_tokens":6708,"completion_tokens":1458,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1146","model":"gpt-4o","created":1718330246,"user":"charlie@example.com","usage":{"prompt_tokens":5594,"completion_tokens":2224,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1147","model":"gpt-4o-mini","created":1718330247,"user":"diana@example.com","usage":{"prompt_tokens":5938,"completion_tokens":1627,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1148","model":"claude-3-opus-20240229","created":1718330248,"user":"eve@example.com","usage":{"prompt_tokens":5999,"completion_tokens":2799,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1149","model":"o1-mini","created":1718330249,"user":"frank@example.com","usage":{"prompt_tokens":5133,"completion_tokens":2394,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":957}}}
+{"id":"chatcmpl-1150","model":"gpt-4o","created":1718330250,"user":"alice@example.com","usage":{"prompt_tokens":6086,"completion_tokens":1378,"prompt_tokens_details":{"cached_tokens":3651}}}
+{"id":"chatcmpl-1151","model":"claude-3-5-sonnet-20241022","created":1718330251,"user":"bob@example.com","usage":{"prompt_tokens":4483,"completion_tokens":1813,"prompt_tokens_details":{"cached_tokens":2689}}}
+{"id":"chatcmpl-1152","model":"gpt-4o","created":1718330252,"user":"charlie@example.com","usage":{"prompt_tokens":5298,"completion_tokens":2153,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1153","model":"gpt-4o-mini","created":1718330253,"user":"diana@example.com","usage":{"prompt_tokens":5083,"completion_tokens":2687,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1154","model":"claude-3-opus-20240229","created":1718330254,"user":"eve@example.com","usage":{"prompt_tokens":5982,"completion_tokens":1520,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1155","model":"o1-mini","created":1718330255,"user":"frank@example.com","usage":{"prompt_tokens":3843,"completion_tokens":2029,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":811}}}
+{"id":"chatcmpl-1156","model":"gpt-4o","created":1718330256,"user":"alice@example.com","usage":{"prompt_tokens":4599,"completion_tokens":2723,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1157","model":"claude-3-5-sonnet-20241022","created":1718330257,"user":"bob@example.com","usage":{"prompt_tokens":4703,"completion_tokens":2439,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1158","model":"gpt-4o","created":1718330258,"user":"charlie@example.com","usage":{"prompt_tokens":4954,"completion_tokens":2475,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1159","model":"gpt-4o-mini","created":1718330259,"user":"diana@example.com","usage":{"prompt_tokens":4337,"completion_tokens":2777,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1160","model":"claude-3-opus-20240229","created":1718330260,"user":"eve@example.com","usage":{"prompt_tokens":5708,"completion_tokens":1130,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1161","model":"o1-mini","created":1718330261,"user":"frank@example.com","usage":{"prompt_tokens":3695,"completion_tokens":1999,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":799}}}
+{"id":"chatcmpl-1162","model":"gpt-4o","created":1718330262,"user":"alice@example.com","usage":{"prompt_tokens":6109,"completion_tokens":922,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1163","model":"claude-3-5-sonnet-20241022","created":1718330263,"user":"bob@example.com","usage":{"prompt_tokens":5993,"completion_tokens":1466,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1164","model":"gpt-4o","created":1718330264,"user":"charlie@example.com","usage":{"prompt_tokens":5900,"completion_tokens":1525,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1165","model":"gpt-4o-mini","created":1718330265,"user":"diana@example.com","usage":{"prompt_tokens":6424,"completion_tokens":2335,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1166","model":"claude-3-opus-20240229","created":1718330266,"user":"eve@example.com","usage":{"prompt_tokens":4358,"completion_tokens":1162,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1167","model":"o1-mini","created":1718330267,"user":"frank@example.com","usage":{"prompt_tokens":3118,"completion_tokens":2340,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":936}}}
+{"id":"chatcmpl-1168","model":"gpt-4o","created":1718330268,"user":"alice@example.com","usage":{"prompt_tokens":4951,"completion_tokens":3137,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1169","model":"claude-3-5-sonnet-20241022","created":1718330269,"user":"bob@example.com","usage":{"prompt_tokens":6332,"completion_tokens":1157,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1170","model":"gpt-4o","created":1718330270,"user":"charlie@example.com","usage":{"prompt_tokens":5690,"completion_tokens":3105,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1171","model":"gpt-4o-mini","created":1718330271,"user":"diana@example.com","usage":{"prompt_tokens":6108,"completion_tokens":3249,"prompt_tokens_details":{"cached_tokens":3664}}}
+{"id":"chatcmpl-1172","model":"claude-3-opus-20240229","created":1718330272,"user":"eve@example.com","usage":{"prompt_tokens":6783,"completion_tokens":3109,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1173","model":"o1-mini","created":1718330273,"user":"frank@example.com","usage":{"prompt_tokens":4638,"completion_tokens":2824,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":1129}}}
+{"id":"chatcmpl-1174","model":"gpt-4o","created":1718330274,"user":"alice@example.com","usage":{"prompt_tokens":3502,"completion_tokens":3298,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1175","model":"claude-3-5-sonnet-20241022","created":1718330275,"user":"bob@example.com","usage":{"prompt_tokens":4454,"completion_tokens":3237,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1176","model":"gpt-4o","created":1718330276,"user":"charlie@example.com","usage":{"prompt_tokens":6311,"completion_tokens":1109,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1177","model":"gpt-4o-mini","created":1718330277,"user":"diana@example.com","usage":{"prompt_tokens":3402,"completion_tokens":3074,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1178","model":"claude-3-opus-20240229","created":1718330278,"user":"eve@example.com","usage":{"prompt_tokens":5599,"completion_tokens":1559,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1179","model":"o1-mini","created":1718330279,"user":"frank@example.com","usage":{"prompt_tokens":5245,"completion_tokens":1309,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":523}}}
+{"id":"chatcmpl-1180","model":"gpt-4o","created":1718330280,"user":"alice@example.com","usage":{"prompt_tokens":6166,"completion_tokens":2805,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1181","model":"claude-3-5-sonnet-20241022","created":1718330281,"user":"bob@example.com","usage":{"prompt_tokens":5424,"completion_tokens":2481,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1182","model":"gpt-4o","created":1718330282,"user":"charlie@example.com","usage":{"prompt_tokens":6424,"completion_tokens":2918,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1183","model":"gpt-4o-mini","created":1718330283,"user":"diana@example.com","usage":{"prompt_tokens":6277,"completion_tokens":1356,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1184","model":"claude-3-opus-20240229","created":1718330284,"user":"eve@example.com","usage":{"prompt_tokens":4535,"completion_tokens":1323,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1185","model":"o1-mini","created":1718330285,"user":"frank@example.com","usage":{"prompt_tokens":3002,"completion_tokens":1306,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":522}}}
+{"id":"chatcmpl-1186","model":"gpt-4o","created":1718330286,"user":"alice@example.com","usage":{"prompt_tokens":6858,"completion_tokens":2486,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1187","model":"claude-3-5-sonnet-20241022","created":1718330287,"user":"bob@example.com","usage":{"prompt_tokens":6837,"completion_tokens":2246,"prompt_tokens_details":{"cached_tokens":4102}}}
+{"id":"chatcmpl-1188","model":"gpt-4o","created":1718330288,"user":"charlie@example.com","usage":{"prompt_tokens":3417,"completion_tokens":1317,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1189","model":"gpt-4o-mini","created":1718330289,"user":"diana@example.com","usage":{"prompt_tokens":5881,"completion_tokens":1582,"prompt_tokens_details":{"cached_tokens":3528}}}
+{"id":"chatcmpl-1190","model":"claude-3-opus-20240229","created":1718330290,"user":"eve@example.com","usage":{"prompt_tokens":5030,"completion_tokens":1738,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1191","model":"o1-mini","created":1718330291,"user":"frank@example.com","usage":{"prompt_tokens":6502,"completion_tokens":1781,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":712}}}
+{"id":"chatcmpl-1192","model":"gpt-4o","created":1718330292,"user":"alice@example.com","usage":{"prompt_tokens":6738,"completion_tokens":2500,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1193","model":"claude-3-5-sonnet-20241022","created":1718330293,"user":"bob@example.com","usage":{"prompt_tokens":3965,"completion_tokens":3269,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1194","model":"gpt-4o","created":1718330294,"user":"charlie@example.com","usage":{"prompt_tokens":3133,"completion_tokens":1362,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1195","model":"gpt-4o-mini","created":1718330295,"user":"diana@example.com","usage":{"prompt_tokens":3826,"completion_tokens":1417,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1196","model":"claude-3-opus-20240229","created":1718330296,"user":"eve@example.com","usage":{"prompt_tokens":6798,"completion_tokens":3263,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1197","model":"o1-mini","created":1718330297,"user":"frank@example.com","usage":{"prompt_tokens":4105,"completion_tokens":1567,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":626}}}
+{"id":"chatcmpl-1198","model":"gpt-4o","created":1718330298,"user":"alice@example.com","usage":{"prompt_tokens":4190,"completion_tokens":2230,"prompt_tokens_details":{"cached_tokens":0}}}
+{"id":"chatcmpl-1199","model":"claude-3-5-sonnet-20241022","created":1718330299,"user":"bob@example.com","usage":{"prompt_tokens":6237,"completion_tokens":1588,"prompt_tokens_details":{"cached_tokens":3742}}}
+{"id":"chatcmpl-err-0","model":"gpt-4o","created":1718330300,"user":"alice@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-1","model":"gpt-4o","created":1718330301,"user":"bob@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-2","model":"gpt-4o","created":1718330302,"user":"charlie@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-3","model":"gpt-4o","created":1718330303,"user":"diana@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-4","model":"gpt-4o","created":1718330304,"user":"eve@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-5","model":"gpt-4o","created":1718330305,"user":"frank@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-6","model":"gpt-4o","created":1718330306,"user":"alice@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-7","model":"gpt-4o","created":1718330307,"user":"bob@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-8","model":"gpt-4o","created":1718330308,"user":"charlie@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-9","model":"gpt-4o","created":1718330309,"user":"diana@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-10","model":"gpt-4o","created":1718330310,"user":"eve@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-11","model":"gpt-4o","created":1718330311,"user":"frank@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-12","model":"gpt-4o","created":1718330312,"user":"alice@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-13","model":"gpt-4o","created":1718330313,"user":"bob@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}
+{"id":"chatcmpl-err-14","model":"gpt-4o","created":1718330314,"user":"charlie@example.com","error":{"message":"rate_limit"},"usage":{"prompt_tokens":0,"completion_tokens":0}}`.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+
+function fmtUsd(n) { return '$' + n.toFixed(2); }
+function fmtNum(n) { return n.toLocaleString(); }
+
+function render() {
+  const a = analyze(demoData);
+  const recs = recommend(a);
+  
+  // model table
+  const tbody = document.getElementById('modelTable');
+  tbody.innerHTML = '';
+  for (const m of a.byModel) {
+    const pct = a.totalCost > 0 ? (m.cost / a.totalCost * 100) : 0;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><code>${m.model}</code></td>
+      <td class="num">${fmtNum(m.requests)}</td>
+      <td class="num">${fmtUsd(m.cost)}</td>
+      <td class="num">${pct.toFixed(1)}%</td>
+      <td><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+    `;
+    tbody.appendChild(row);
+  }
+  
+  // recommendations
+  const recList = document.getElementById('recList');
+  recList.innerHTML = '';
+  recs.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'rec ' + r.severity;
+    const savings = r.estimatedMonthlySavings > 0 ? `<span class="savings">Save ${fmtUsd(r.estimatedMonthlySavings)}/mo</span>` : '';
+    div.innerHTML = `
+      <div class="title"><span class="badge ${r.severity}">${r.severity.toUpperCase()}</span>#${i + 1}: ${r.title}</div>
+      <div class="desc">${r.description}</div>
+      ${savings}
+      <div class="action">${r.action}</div>
+    `;
+    recList.appendChild(div);
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const records = text.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  const a = analyze(records);
+  const recs = recommend(a);
+  document.getElementById('fileOutput').innerHTML = `
+    <div class="card" style="margin-top: 16px">
+      <div class="label">Your spend</div>
+      <div class="value">${fmtUsd(a.totalCost)}</div>
+      <div class="sub">${fmtNum(a.totalRequests)} requests across ${a.byModel.length} models</div>
+      <div style="margin-top: 12px">${recs.length} recommendations found. Run <code>llm-cost analyze ${file.name}</code> for the full report.</div>
+    </div>
+  `;
+});
+
+render();
+</script>
+</body>
+</html>

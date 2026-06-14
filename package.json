@@ -1,0 +1,36 @@
+{
+  "name": "llm-cost-optimizer",
+  "version": "0.1.0",
+  "description": "Analyze LLM API usage logs, calculate cost, and recommend optimizations in real time.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "llm-cost": "bin/llm-cost.js"
+  },
+  "scripts": {
+    "analyze": "node bin/llm-cost.js analyze",
+    "demo": "node bin/llm-cost.js demo",
+    "serve": "node web/server.js",
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "llm",
+    "cost",
+    "optimization",
+    "openai",
+    "anthropic",
+    "ai-cost"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Codex <codex@example.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codex-earner/llm-cost-optimizer"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  }
+}
